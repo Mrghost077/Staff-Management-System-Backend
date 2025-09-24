@@ -3,7 +3,9 @@ import express from "express";
 import cors from "cors";
 import 'dotenv/config';
 import cookieParser from "cookie-parser";
+
 import connectDB from "./config/mongodb.js";
+import authRouter from "./routes/authRoutes.js"
 
 // Global instances
 const app = express();
@@ -15,10 +17,12 @@ app.use(cors({credentials:true}));
 app.use(express.json());
 app.use(cookieParser());
 
-// Base route
+// Base route / API Endpoints
 app.get("/", (req, res) => {
   res.status(200).json({ success: { message: `Welcome to the server!` } });
 });
+
+app.use('/api/auth', authRouter);
 
 // Error route
 app.use((req, res) => {
