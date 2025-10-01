@@ -1,6 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
+import transporter from "../config/nodemailer.js";
 
 // Controller for Registering new User
 export const register = async (req, res ) => {
@@ -33,6 +34,20 @@ export const register = async (req, res ) => {
             sameSite: process.env.NODE_ENV === 'production' ? "none" : "strict",
             maxAge: 7 * 24 * 60 * 60 * 1000
         });
+
+        // sending account created email to the new register
+        const mailOptions = {
+            from: process.env.SENDER_EMAIL,
+            to: email,
+            subject: 'Welcome to Teach Grid',
+            text: `Hello ${name} !, Your teachGrid account has been successfully created. 
+            your login details: [Email: ${email}, Password: ${password}]. 
+            For your Security please sign in and change your password before using the system.
+            
+            If you did not request this account or believe this is a mistake, contact support at support@teachgrid.com.`
+        }
+
+        await transporter.sendMail(mailOptions);
 
         return res.json({success: true});
     }
