@@ -182,3 +182,13 @@ export const verifyEmail = async(req,res) =>{
        return res.json({success: false, message: error.message});
     }
 }
+
+//controller to check if user is authenticated
+export const isAuthenticated = async(req,res) => {
+    try {
+        // this will automatically work if there is token in cookie because i have connected the middleware 
+        return res.json({success: true, message: "User is authenticated"});
+    } catch (error) {
+        return res.json({success: false, message: error.message});
+    }
+}
