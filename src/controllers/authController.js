@@ -192,3 +192,79 @@ export const isAuthenticated = async(req,res) => {
         return res.json({success: false, message: error.message});
     }
 }
+
+// Controller to send reset pasword otp
+export const sendResetOtp = async(req,res) =>{
+    const {email} = req.body;
+
+    if (!email){
+        return res.json({success: false , message: "Email Missing"});
+    }
+
+    try {
+        const user = await userModel.findOne({email});
+
+        if(!user){
+            return res.json({success: false, message: "User not Found!"});
+        }
+
+        // generate a random otp
+        const otp = String(Math.floor(100000 + Math.random()*900000));
+
+        user.resetOtp = otp;
+        user.resetOtpExpireAt = Date.now() + 15 * 60 * 1000;
+
+        await user.save();
+        
+        const mailOptions = {
+            from: process.env.SENDER_EMAIL,
+            to: user.email,
+            subject: 'Password Reset OTP',
+            text: ` Use this OTP to reset your password : ${otp}, Note: this OTP expires is 15 min
+            
+            If you did not request this account or believe this is a mistake, contact support at support@teachgrid.com.`
+        }
+        await transporter.sendMail(mailOptions);
+
+        return res.json({success: true, message: "OTP sent to your email"});
+
+    } catch (error) {
+        return res.json({success: false, message: error.message});
+    }
+}
+
+// Controller to reset password
+export const resetPassword = async (req,res) => {
+    const {email, otp, newPassword} = req.body;
+
+    if(!email || !otp || !newPassword){
+        return res.json({success: false, message: "Missing details "});
+    }
+
+    try {
+        const user = await userModel.findOne({email});
+        if(!user){
+            return res.json({success: false, message: "User not Found!"});
+        }
+
+        if(user.resetOtp === '' || user.resetOtp !== otp){
+            return res.json ({success: false, message: "Invalid OTP!"});
+        }
+
+        if(user.resetOtpExpireAt < Date.now()){
+            return res.json({success: false , message: "OTP Expired!"});
+        }
+
+        const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+        user.password = hashedPassword;
+        user.resetOtp = '';
+        user.resetOtpExpireAt = 0;
+
+        await user.save();
+
+        return res.json({success: true, message: "Password has been reset successfully!"});
+    } catch (error) {
+        return res.json({success: false, message: error.message})
+    }
+}
