@@ -3,7 +3,7 @@ import userModel from "../models/userModel.js";
 //Controller to get User Info
 export const getUserData = async(req,res) =>{
     try {
-        const {userId} = req.body;
+        const userId = req.userId;
 
         const user = await userModel.findById(userId);
 

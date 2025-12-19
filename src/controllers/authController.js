@@ -193,6 +193,37 @@ export const isAuthenticated = async(req,res) => {
     }
 }
 
+// Controller to return authenticated user's profile
+export const me = async (req, res) => {
+  try {
+    const userId = req.userId
+
+    if (!userId) {
+      return res.json({ success: false, message: 'User is not authenticated' })
+    }
+
+    const user = await userModel.findById(userId)
+
+    if (!user) {
+      return res.json({ success: false, message: 'User Not Found!' })
+    }
+
+    return res.json({
+      success: true,
+      user: {
+        _id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        phoneNum: user.phoneNum,
+        isAccountVerified: user.isAccountVerified
+      }
+    })
+  } catch (error) {
+    return res.json({ success: false, message: error.message })
+  }
+}
+
 // Controller to send reset pasword otp
 export const sendResetOtp = async(req,res) =>{
     const {email} = req.body;
