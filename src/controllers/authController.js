@@ -5,9 +5,9 @@ import transporter from "../config/nodemailer.js";
 
 // Controller for Registering new User
 export const register = async (req, res ) => {
-    const {name , email, password, phoneNum, role } = req.body;
+    const {name , email, password, phoneNum, role, dateOfBirth, address } = req.body;
 
-    if (!name || !email || !password || !role) {
+    if (!name || !email || !password || !role || !dateOfBirth || !address) {
         return res.json ({success : false , message : "Missing Details "})
 
     }
@@ -21,7 +21,7 @@ export const register = async (req, res ) => {
         // encrypting the password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const user = new userModel({name, email, password: hashedPassword, phoneNum, role});
+        const user = new userModel({name, email, password: hashedPassword, phoneNum, role, dateOfBirth, address});
         await user.save();
 
         // Jwt token generate
