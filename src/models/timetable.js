@@ -8,8 +8,7 @@ const timetableSchema = new mongoose.Schema(
       required: true
     },
     grade: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "grade",
+      type: String,
       required: true
     },
     subject: {
@@ -31,12 +30,10 @@ const timetableSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// Prevent duplicate period assignment
+/* prevent same teacher same time */
 timetableSchema.index(
   { teacher: 1, dayOfWeek: 1, period: 1 },
   { unique: true }
 );
 
-const Timetable = mongoose.models.Timetable || mongoose.model("Timetable", timetableSchema);
-
-export default Timetable;
+export default mongoose.model("Timetable", timetableSchema);
