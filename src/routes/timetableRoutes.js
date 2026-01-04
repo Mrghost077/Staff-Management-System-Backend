@@ -1,26 +1,21 @@
 import express from "express";
-import userAuth from "../middleware/userAuth.js";
 import {
-  createTimetableEntry,
-  deleteTimetableEntry,
-  getTimetableEntries,
-  updateTimetableEntry
+  getTeachersForTimetable,
+  createTimetable,
+  getAllTimetables,
+  getTimetableByTeacher,
+  deleteTimetable // NEW: Import delete function
 } from "../controllers/timetableController.js";
 
-const timetableRouter = express.Router();
+const router = express.Router();
 
-// GET /api/timetable?teacher=&grade=&dayOfWeek=
-timetableRouter.get("/", userAuth, getTimetableEntries);
+/* 🔹 Teacher list for dropdown */
+router.get("/teachers", getTeachersForTimetable);
 
-// POST /api/timetable
-timetableRouter.post("/", userAuth, createTimetableEntry);
+/* 🔹 Timetable CRUD */
+router.post("/", createTimetable);
+router.get("/", getAllTimetables);
+router.get("/teacher/:teacherId", getTimetableByTeacher);
+router.delete("/:id", deleteTimetable); // NEW: DELETE endpoint
 
-// PUT /api/timetable/:id
-timetableRouter.put("/:id", userAuth, updateTimetableEntry);
-
-// DELETE /api/timetable/:id
-timetableRouter.delete("/:id", userAuth, deleteTimetableEntry);
-
-export default timetableRouter;
-
-
+export default router;
