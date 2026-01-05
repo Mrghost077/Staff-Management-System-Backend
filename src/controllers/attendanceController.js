@@ -131,110 +131,83 @@ export const exportCSV = async (req, res) => {
 export const exportPDF = async (req, res) => {
     try {
         const { date, teacherId } = req.query;
-        
         let query = {};
-        if (date) {
-            query.date = { $regex: `^${date}` };
-        }
+        if (date) query.date = { $regex: `^${date}` };
+        if (teacherId) query.teacher = teacherId;
 
-        // If a teacherId is provided (Teacher Side), filter by that teacher
-        // If not provided (Admin Side), it fetches all teachers for that date
-        if (teacherId) {
-            query.teacher = teacherId;
-        }
-
-        // Fetch records
         const records = await attendanceModel.find(query).sort({ date: 1 });
 
-        // 2. CHECK IF DATA EXISTS
         if (!records || records.length === 0) {
-            return res.status(404).json({ 
-                success: false, 
-                message: "No records found for the selected period." 
-            });
+            return res.status(404).json({ success: false, message: "No records found." });
         }
 
-        // 3. GENERATE PDF
-        const doc = new PDFDocument({ margin: 30, size: 'A4' });
-
-        // Error handling for the PDF stream
-        doc.on('error', (err) => {
-            console.error("Stream Error:", err);
-        });
-
-        // Set Response Headers for File Download
+        const doc = new PDFDocument({ margin: 40, size: 'A4' });
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', `attachment; filename=attendance_report_${date}.pdf`);
-
-        // Pipe the doc to the response
+        res.setHeader('Content-Disposition', `attachment; filename=Attendance_Report_${date}.pdf`);
         doc.pipe(res);
 
-        // --- PDF LAYOUT ---
-
-        // Header
-        doc.fontSize(22).fillColor('#1d4ed8').text(`Attendance Report`, { align: 'center' });
-        doc.fontSize(12).fillColor('#4b5563').text(`Generated on: ${new Date().toLocaleDateString()}`, { align: 'center' });
-        doc.fontSize(14).fillColor('#000000').text(`Period: ${date}`, { align: 'center' });
+        // --- 1. HEADER BANNER ---
+        doc.rect(0, 0, 612, 100).fill('#1e3a8a'); // Dark Blue Top Bar
+        doc.fillColor('#ffffff').fontSize(24).font('Helvetica-Bold').text('H/Meegasara Maha Vidyalaya', 40, 35);
+        doc.fontSize(10).font('Helvetica').text('TeachGrid Official Attendance Record', 40, 65);
+        
+        // --- 2. REPORT INFO ---
+        doc.fillColor('#000000').moveDown(5);
+        doc.fontSize(16).font('Helvetica-Bold').text('Attendance Summary', { underline: true });
+        doc.fontSize(10).font('Helvetica').text(`Report Period: ${date}`);
+        doc.text(`Generated: ${new Date().toLocaleString()}`);
         doc.moveDown(2);
 
-        // Table Header
-        doc.fontSize(10).font('Helvetica-Bold').fillColor('#374151');
-        const tableTop = doc.y;
-        doc.text('Date', 30, tableTop);
-        doc.text('Teacher Name', 110, tableTop);
-        doc.text('Status', 280, tableTop);
-        doc.text('Check In/Out', 400, tableTop);
+        // --- 3. TABLE HEADERS ---
+        const tableTop = 200;
+        doc.font('Helvetica-Bold').fontSize(11);
+        doc.text('Date', 40, tableTop);
+        doc.text('Teacher Name', 130, tableTop);
+        doc.text('Timing', 320, tableTop);
+        doc.text('Status', 480, tableTop);
+
+        // Draw Header Line
+        doc.moveTo(40, tableTop + 15).lineTo(550, tableTop + 15).strokeColor('#cccccc').stroke();
         
-        doc.moveTo(30, tableTop + 15).lineTo(560, tableTop + 15).strokeColor('#e5e7eb').stroke();
-        doc.moveDown(1);
+        // --- 4. TABLE ROWS ---
+        let rowY = tableTop + 30;
+        doc.font('Helvetica').fontSize(10);
 
-        // Records List
-        doc.font('Helvetica').fillColor('#1f2937');
-        records.forEach((r, i) => {
-            const currentY = doc.y;
-            
-            // Draw a light gray line between rows
-            if (i > 0) {
-                doc.moveTo(30, currentY - 5).lineTo(560, currentY - 5).strokeColor('#f3f4f6').stroke();
-            }
+        records.forEach((r) => {
+            // Alternating Row Background
+            if (rowY > 750) { doc.addPage(); rowY = 50; } // Handle Page Break
 
-            const statusLabel = r.status.charAt(0).toUpperCase() + r.status.slice(1);
-            const timing = `${r.checkIn || '--:--'} - ${r.checkOut || '--:--'}`;
+            doc.fillColor('#000000').text(r.date, 40, rowY);
+            doc.text(r.teacherName, 130, rowY, { width: 180 });
+            doc.text(`${r.checkIn || '--'} - ${r.checkOut || '--'}`, 320, rowY);
 
-            doc.fontSize(9);
-            doc.text(r.date, 30, currentY);
-            doc.text(r.teacherName, 110, currentY, { width: 160 });
-            doc.text(statusLabel, 280, currentY);
-            doc.text(timing, 400, currentY);
+            // COLOR CODED STATUS
+            let statusColor = '#6b7280'; // Gray (Default)
+            if (r.status === 'present') statusColor = '#15803d'; // Green
+            if (r.status === 'late') statusColor = '#b45309';    // Orange
+            if (r.status === 'leave') statusColor = '#b91c1c';   // Red
 
-            doc.moveDown(1.2);
+            // Draw status with color
+            doc.fillColor(statusColor).font('Helvetica-Bold').text(r.status.toUpperCase(), 480, rowY);
+            doc.font('Helvetica').fillColor('#000000');
 
-            // Add new page if content exceeds height
-            if (doc.y > 750) {
-                doc.addPage();
-            }
+            rowY += 25; // Space between rows
         });
 
-        // Footer
-        const pageCount = doc.bufferedPageRange().count;
-        for (let i = 0; i < pageCount; i++) {
+        // --- 5. FOOTER ---
+        const pages = doc.bufferedPageRange();
+        for (let i = 0; i < pages.count; i++) {
             doc.switchToPage(i);
             doc.fontSize(8).fillColor('#9ca3af').text(
-                `Page ${i + 1} of ${pageCount}`,
-                30,
-                doc.page.height - 50,
-                { align: 'center' }
+                `This is a computer-generated document by TeachGrid. Page ${i + 1} of ${pages.count}`,
+                0, 780, { align: 'center' }
             );
         }
 
-        // Finalize
         doc.end();
 
     } catch (error) {
-        console.error("PDF Export Error:", error);
-        if (!res.headersSent) {
-            res.status(500).json({ success: false, message: "Internal Server Error during PDF generation" });
-        }
+        if (!res.headersSent) res.status(500).json({ success: false, message: error.message });
     }
 };
 
