@@ -17,33 +17,52 @@ export const getTeachers = async (req, res) => {
 // 2. Initialize attendance for a specific date
 export const initAttendance = async (req, res) => {
     try {
-        const { date } = req.body; // Expecting 'YYYY-MM-DD'
+        const { date } = req.body; 
         if (!date) return res.status(400).json({ message: "Date is required" });
 
+        // 1. Find teachers
         const teachers = await userModel.find({ role: 'teacher' });
         
+        // DEBUG: Check if teachers are actually being found
+        console.log(`Initialising attendance for ${date}. Teachers found: ${teachers.length}`);
+
+        if (teachers.length === 0) {
+            return res.status(200).json({ 
+                success: true, 
+                message: "No teachers found to initialize." 
+            });
+        }
+
         const operations = teachers.map(t => ({
             updateOne: {
-                filter: { teacher: t._id, date: date },
+                // filter by 'teacher', not 'userId'
+                filter: { teacher: t._id, date: date }, 
                 update: {
                     $setOnInsert: {
                         teacher: t._id,
                         teacherName: t.name,
                         date: date,
-                        status: 'present'
+                        status: 'unmarked',
+                        subject: t.subject || "General"
                     }
                 },
                 upsert: true
             }
         }));
 
-        await attendanceModel.bulkWrite(operations);
+        // 2. Execute bulkWrite
+        const result = await attendanceModel.bulkWrite(operations);
+        
+        console.log("BulkWrite successful:", result.upsertedCount, "new records created.");
+        
         res.json({ success: true, message: `Attendance initialized for ${date}` });
+
     } catch (error) {
+        // THIS IS KEY: It prints the actual error to your VS Code / Terminal console
+        console.error("Error in initAttendance:", error); 
         res.status(500).json({ success: false, message: error.message });
     }
 };
-
 // 3. Get attendance for a specific date
 export const getAttendanceByDate = async (req, res) => {
     try {
