@@ -10,6 +10,7 @@ import absenceRouter from "./routes/absenceRoutes.js";
 import reliefAssignmentRouter from "./routes/reliefAssignmentRoutes.js";
 import announcementRoutes from "./routes/announcements.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
+import attendanceRouter from "./routes/attendanceRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3301;
@@ -35,6 +36,7 @@ app.use("/api/absence", absenceRouter);
 app.use("/api", reliefAssignmentRouter);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/timetable", timetableRoutes);
+app.use('/api/attendance', attendanceRouter);
 
 /* Test */
 app.get("/api/test", (req, res) => {

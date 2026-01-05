@@ -18,3 +18,6 @@ reliefAssignmentRouter.get("/relief-assignments/available",userAuth,getAvailable
 export default reliefAssignmentRouter;
 
 
+
+
+
