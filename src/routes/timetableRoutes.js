@@ -19,3 +19,4 @@ router.get("/teacher/:teacherId", getTimetableByTeacher);
 router.delete("/:id", deleteTimetable); // NEW: DELETE endpoint
 
 export default router;
+

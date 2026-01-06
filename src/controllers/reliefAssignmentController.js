@@ -1,43 +1,44 @@
 import Absence from "../models/absenceModel.js";
+import Attendance from "../models/attendanceModel.js";
 import Timetable from "../models/timetable.js";
 import ReliefAssignment from "../models/reliefAssignmentModel.js";
 import userModel from "../models/userModel.js";
 
 // Service: generate relief assignments for a given absence
-export const createReliefAssignmentsForAbsence = async (absenceId) => {
-    const absence = await Absence.findById(absenceId);
-    if (!absence) {
-        const error = new Error("Absence not found");
-        error.statusCode = 404;
-        throw error;
-    }
+export const createReliefAssignmentsForAbsence = async (attendanceId) => {
+    // 1. Find the attendance record
+    const attendance = await Attendance.findById(attendanceId);
+    if (!attendance) throw new Error("Attendance record not found");
 
-    const dayOfWeek = absence.date.toLocaleDateString("en-US", {
+    // 2. FIX: Convert String Date to "Monday", "Tuesday", etc.
+    // If your date is "2026-01-06", this converts it correctly
+    const dayOfWeek = new Date(attendance.date).toLocaleDateString("en-US", {
         weekday: "long"
     });
 
+    // 3. Find the classes this teacher was supposed to teach today
     const timetableEntries = await Timetable.find({
-        teacher: absence.teacher,
-        dayOfWeek
+        teacher: attendance.teacher,
+        dayOfWeek: dayOfWeek
     });
 
-    if (!timetableEntries.length) {
-        return [];
-    }
+    if (!timetableEntries.length) return [];
 
+    // 4. Create a Relief Assignment for every period they are missing
     const creationPromises = timetableEntries.map((slot) =>
         ReliefAssignment.findOneAndUpdate(
-            { absence: absenceId, period: slot.period },
+            { attendance: attendanceId, period: slot.period }, 
             {
-                absence: absenceId,
-                originalTeacher: absence.teacher,
+                attendance: attendanceId,
+                originalTeacher: attendance.teacher,
                 grade: slot.grade ? String(slot.grade) : "",
                 subject: slot.subject,
                 dayOfWeek: slot.dayOfWeek,
+                period: slot.period,
                 reliefTeacher: null,
                 status: "pending"
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, new: true }
         )
     );
 
@@ -196,8 +197,8 @@ export const getReliefAssignments = async (req, res) => {
         const assignments = await ReliefAssignment.find(query)
             .populate({ path: "originalTeacher", select: "-password -verifyOtp -resetOtp -resetOtpExpireAt -verifyOtpExpireAt" })
             .populate({ path: "reliefTeacher", select: "-password -verifyOtp -resetOtp -resetOtpExpireAt -verifyOtpExpireAt" })
-            .populate("absence")
-            .sort({ dayOfWeek: 1, period: 1 });
+            .populate("attendance")
+            .sort({ createdAt: -1 })
 
         return res.status(200).json({
             success: true,
@@ -215,12 +216,12 @@ export const getReliefAssignments = async (req, res) => {
 // Find available teachers for a given period and grade
 export const getAvailableReliefTeachers = async (req, res) => {
     try {
-        const { period, grade, dayOfWeek } = req.query;
+        const { period, dayOfWeek, date } = req.query;
 
-        if (!period || !grade || !dayOfWeek) {
+        if (!period || !dayOfWeek || !date) {
             return res.status(400).json({
                 success: false,
-                message: "period, grade, and dayOfWeek are required"
+                message: "period, dayOfWeek, and date are required"
             });
         }
 
@@ -233,46 +234,61 @@ export const getAvailableReliefTeachers = async (req, res) => {
         }
 
         const numericPeriod = Number(period);
-        if (Number.isNaN(numericPeriod)) {
-            return res.status(400).json({
-                success: false,
-                message: "period must be a number"
-            });
-        }
+        const searchDate = new Date(date);
+        const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
 
-        // Teachers busy with their own classes
+        // 2. BUSY: Teachers with scheduled classes
+        // Note: Using 'Timetable' to match your import
         const busyTeacherIds = await Timetable.find({
             dayOfWeek,
             period: numericPeriod
         }).distinct("teacher");
 
-        // Teachers already assigned to relief at the same time
-        const assignedReliefIds = await ReliefAssignment.find({
-            dayOfWeek,
+        // 3. BUSY: Teachers already doing relief today
+        const assignedReliefDocs = await ReliefAssignment.find({
             period: numericPeriod,
             status: "assigned"
-        }).distinct("reliefTeacher");
+        }).populate({
+            path: 'attendance',
+            match: { date: { $gte: startOfDay, $lte: endOfDay } }
+        });
 
-        const unavailable = [
-            ...busyTeacherIds.map(String),
-            ...assignedReliefIds.map(String)
-        ];
+        const assignedReliefIds = assignedReliefDocs
+            .filter(doc => doc.attendance)
+            .map(doc => doc.reliefTeacher?.toString())
+            .filter(Boolean);
 
+        // 4. LEAVE: Teachers on leave today
+        // Note: Changed from 'attendanceModel' to 'Attendance' to match your import
+        const absentTeacherIds = await Attendance.find({
+            date: { $gte: startOfDay, $lte: endOfDay },
+            status: "leave"
+        }).distinct("teacher");
+
+        // 5. Combine and remove duplicates
+        const unavailable = Array.from(new Set([
+            ...busyTeacherIds.map(id => id.toString()),
+            ...assignedReliefIds,
+            ...absentTeacherIds.map(id => id.toString())
+        ])).filter(Boolean);
+
+        // 6. Find Available
         const availableTeachers = await userModel.find({
             role: "teacher",
             _id: { $nin: unavailable }
-        });
+        }).select("name email _id subject");
 
         return res.status(200).json({
             success: true,
-            message: "Available relief teachers fetched",
             data: availableTeachers
         });
+
     } catch (error) {
+        console.error("DEBUG ERROR:", error); 
         return res.status(500).json({
             success: false,
             message: error.message
         });
     }
 };
-

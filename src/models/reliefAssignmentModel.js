@@ -2,9 +2,9 @@ import mongoose from "mongoose";
 
 const reliefAssignmentSchema = new mongoose.Schema(
     {
-        absence: {
+        attendance: {
             type: mongoose.Schema.Types.ObjectId,
-            ref: "Absence",
+            ref: "attendance", 
             required: true
         },
 
@@ -49,14 +49,11 @@ const reliefAssignmentSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Prevent duplicate relief entries for the same absence and period
-reliefAssignmentSchema.index({ absence: 1, period: 1 }, { unique: true });
+// Prevent duplicate relief entries for the same attendance record and period
+reliefAssignmentSchema.index({ attendance: 1, period: 1 }, { unique: true });
 
 const ReliefAssignment =
     mongoose.models.ReliefAssignment ||
     mongoose.model("ReliefAssignment", reliefAssignmentSchema);
 
 export default ReliefAssignment;
-
-
-

@@ -1,6 +1,8 @@
 import userModel from "../models/userModel.js";
 import attendanceModel from "../models/attendanceModel.js";
 import Absence from "../models/absenceModel.js"; 
+import ReliefAssignment from "../models/reliefAssignmentModel.js";
+import { createReliefAssignmentsForAbsence } from "./reliefAssignmentController.js";
 import PDFDocument from 'pdfkit';
 import { stringify } from 'csv-stringify/sync';
 
@@ -77,12 +79,13 @@ export const getAttendanceByDate = async (req, res) => {
     }
 };
 
-// 4. Update attendance status (Syncs with Absence model)
+// 4. Update attendance status (Syncs with Absence & Relief models)
 export const updateAttendance = async (req, res) => {
     try {
         const { id } = req.params;
         const { status, checkIn, checkOut, subject } = req.body;
 
+        // 1. Update the record in the attendance table
         const record = await attendanceModel.findByIdAndUpdate(
             id, 
             { status, checkIn, checkOut, subject }, 
@@ -91,21 +94,32 @@ export const updateAttendance = async (req, res) => {
 
         if (!record) return res.status(404).json({ message: "Record not found" });
 
-        // SYNC LOGIC with your Absence model
+        // 2. SYNC LOGIC
         if (status === 'leave') {
-            // Create or update Absence record
+            // A. Update the Absence collection
             await Absence.findOneAndUpdate(
-                { teacher: record.teacher, date: new Date(record.date) },
+                { teacher: record.teacher, date: record.date }, 
                 { reason: "Marked via Attendance System" },
                 { upsert: true }
             );
+
+            // creating relief assignment for the absence
+            await createReliefAssignmentsForAbsence(record._id);
+
         } else {
-            // If status changed from 'leave' to 'present/late', remove from Absence collection
-            await Absence.deleteOne({ teacher: record.teacher, date: new Date(record.date) });
+            // This ensures if accidentally marked 'Leave' and fixed it, the relief is cancelled
+            await Absence.deleteOne({ teacher: record.teacher, date: record.date });
+            
+            // 2. Remove the "ghost" relief assignments
+            await ReliefAssignment.deleteMany({ 
+                attendance: record._id, 
+                status: 'pending' // Only delete if a relief teacher hasn't been assigned yet
+            });
         }
 
         res.json({ success: true, record });
     } catch (error) {
+        console.error("Attendance Update Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };

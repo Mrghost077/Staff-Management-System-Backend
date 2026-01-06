@@ -138,3 +138,4 @@ export const deleteTimetable = async (req, res) => {
     });
   }
 };
+

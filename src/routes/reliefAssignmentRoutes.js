@@ -10,12 +10,13 @@ import {
 const reliefAssignmentRouter = express.Router();
 
 
-reliefAssignmentRouter.post("/relief-assignments/:absenceId/create",userAuth,createReliefAssignmentsForAbsenceHandler);
-reliefAssignmentRouter.post("/relief-assignments/:id/assign",userAuth,assignReliefTeacher);
-reliefAssignmentRouter.get("/relief-assignments",userAuth,getReliefAssignments);
-reliefAssignmentRouter.get("/relief-assignments/available",userAuth,getAvailableReliefTeachers);
+reliefAssignmentRouter.post("/:absenceId/create",userAuth,createReliefAssignmentsForAbsenceHandler);
+reliefAssignmentRouter.post("/:id/assign",userAuth,assignReliefTeacher);
+reliefAssignmentRouter.get("/",userAuth,getReliefAssignments);
+reliefAssignmentRouter.get("/available",userAuth,getAvailableReliefTeachers);
 
 export default reliefAssignmentRouter;
+
 
 
 
