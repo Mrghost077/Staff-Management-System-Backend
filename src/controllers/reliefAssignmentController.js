@@ -216,7 +216,7 @@ export const getReliefAssignments = async (req, res) => {
 // Find available teachers for a given period and grade
 export const getAvailableReliefTeachers = async (req, res) => {
     try {
-        const { period, dayOfWeek, date } = req.query;
+        const { period, dayOfWeek, date, excludeTeacherId } = req.query;
 
         if (!period || !dayOfWeek || !date) {
             return res.status(400).json({
@@ -239,18 +239,17 @@ export const getAvailableReliefTeachers = async (req, res) => {
         const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
 
         // 2. BUSY: Teachers with scheduled classes
-        // Note: Using 'Timetable' to match your import
         const busyTeacherIds = await Timetable.find({
             dayOfWeek,
             period: numericPeriod
         }).distinct("teacher");
 
-        // 3. BUSY: Teachers already doing relief today
+        // 3. BUSY: Teachers already assigned a relief duty for this specific period
         const assignedReliefDocs = await ReliefAssignment.find({
             period: numericPeriod,
             status: "assigned"
         }).populate({
-            path: 'attendance',
+            path: 'attendance', 
             match: { date: { $gte: startOfDay, $lte: endOfDay } }
         });
 
@@ -259,21 +258,20 @@ export const getAvailableReliefTeachers = async (req, res) => {
             .map(doc => doc.reliefTeacher?.toString())
             .filter(Boolean);
 
-        // 4. LEAVE: Teachers on leave today
-        // Note: Changed from 'attendanceModel' to 'Attendance' to match your import
-        const absentTeacherIds = await Attendance.find({
-            date: { $gte: startOfDay, $lte: endOfDay },
-            status: "leave"
+        // 4. LEAVE: Find ALL teachers who are marked as absent today
+        const absentTeacherIds = await Absence.find({
+            date: { $gte: startOfDay, $lte: endOfDay }
         }).distinct("teacher");
 
         // 5. Combine and remove duplicates
         const unavailable = Array.from(new Set([
             ...busyTeacherIds.map(id => id.toString()),
             ...assignedReliefIds,
-            ...absentTeacherIds.map(id => id.toString())
+            ...absentTeacherIds.map(id => id.toString()),
+            excludeTeacherId?.toString() 
         ])).filter(Boolean);
 
-        // 6. Find Available
+        // 6. Find Available: Any teacher NOT in the unavailable list
         const availableTeachers = await userModel.find({
             role: "teacher",
             _id: { $nin: unavailable }
@@ -290,5 +288,42 @@ export const getAvailableReliefTeachers = async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+};
+
+// Get duties specifically for the logged-in teacher
+export const getTeacherReliefDuties = async (req, res) => {
+    try {
+        const userId = req.userId; // Extracted from token by middleware
+
+        const duties = await ReliefAssignment.find({ reliefTeacher: userId })
+            .populate("attendance") // To get the date
+            .sort({ createdAt: -1 }); // Newest first
+
+        res.status(200).json({ success: true, data: duties });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Allow teacher to update status (e.g., "assigned" -> "completed")
+export const updateReliefStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const updatedDuty = await ReliefAssignment.findByIdAndUpdate(
+            id, 
+            { status }, 
+            { new: true }
+        );
+
+        if (!updatedDuty) {
+            return res.status(404).json({ success: false, message: "Duty not found" });
+        }
+
+        res.status(200).json({ success: true, message: "Status updated", data: updatedDuty });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 };
