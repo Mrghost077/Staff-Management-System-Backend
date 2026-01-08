@@ -3,6 +3,7 @@ import Attendance from "../models/attendanceModel.js";
 import Timetable from "../models/timetable.js";
 import ReliefAssignment from "../models/reliefAssignmentModel.js";
 import userModel from "../models/userModel.js";
+import sendEmail from "../config/nodemailer.js";
 
 // Service: generate relief assignments for a given absence
 export const createReliefAssignmentsForAbsence = async (attendanceId) => {
@@ -97,7 +98,11 @@ export const assignReliefTeacher = async (req, res) => {
             });
         }
 
-        const assignment = await ReliefAssignment.findById(id);
+        // 3. Find Assignment 
+        const assignment = await ReliefAssignment.findById(id)
+            .populate('attendance') 
+            .populate('reliefTeacher', 'name email');
+
         if (!assignment) {
             return res.status(404).json({
                 success: false,
@@ -105,29 +110,31 @@ export const assignReliefTeacher = async (req, res) => {
             });
         }
 
-        if (assignment.status === "assigned" && assignment.reliefTeacher) {
-            return res.status(409).json({
-                success: false,
-                message: "Relief teacher already assigned for this slot"
-            });
-        }
+        // DATE EXTRACTION 
+        const rawDate = assignment.attendance?.date || assignment.date;
+        const dateStr = rawDate ? new Date(rawDate).toLocaleDateString() : "Scheduled Date";
 
-        const teacher = await userModel.findById(teacherId);
-        if (!teacher || teacher.role !== "teacher") {
+        // Store reference to the old teacher before overwriting
+        const oldTeacher = assignment.reliefTeacher;
+
+        // 4. Validating the New Relief Teacher
+        const newTeacher = await userModel.findById(teacherId);
+        if (!newTeacher || newTeacher.role !== "teacher") {
             return res.status(404).json({
                 success: false,
                 message: "Relief teacher not found"
             });
         }
 
-        if (String(teacher._id) === String(assignment.originalTeacher)) {
+        // 5. Prevent original teacher from covering their own class
+        if (String(newTeacher._id) === String(assignment.originalTeacher)) {
             return res.status(400).json({
                 success: false,
                 message: "Original teacher cannot be assigned as relief"
             });
         }
 
-        // Check timetable conflicts for the relief teacher
+        // 6. Conflict Check: Timetable
         const conflict = await Timetable.findOne({
             teacher: teacherId,
             dayOfWeek: assignment.dayOfWeek,
@@ -137,12 +144,13 @@ export const assignReliefTeacher = async (req, res) => {
         if (conflict) {
             return res.status(409).json({
                 success: false,
-                message: "Teacher is not available during this period"
+                message: "Teacher has a scheduled class during this period"
             });
         }
 
-        // Ensure the teacher is not already assigned to another relief at this time
+        // 7. Conflict Check: Other Relief Assignments
         const reliefConflict = await ReliefAssignment.findOne({
+            _id: { $ne: id }, 
             reliefTeacher: teacherId,
             dayOfWeek: assignment.dayOfWeek,
             period: assignment.period,
@@ -152,20 +160,69 @@ export const assignReliefTeacher = async (req, res) => {
         if (reliefConflict) {
             return res.status(409).json({
                 success: false,
-                message: "Teacher is already assigned to another relief"
+                message: "Teacher is already assigned to another relief duty in this slot"
             });
         }
 
+        // 8. Update Database
         assignment.reliefTeacher = teacherId;
         assignment.status = "assigned";
         await assignment.save();
 
+        // 9. Notification A: Notify the OLD teacher if they are being replaced
+        if (oldTeacher && String(oldTeacher._id) !== String(teacherId)) {
+            try {
+                await sendEmail({
+                    to: oldTeacher.email,
+                    subject: `Relief Duty Cancelled: Period ${assignment.period}`,
+                    html: `
+                        <div style="font-family: sans-serif; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px;">
+                            <h2 style="color: #dc2626;">Duty Reassigned</h2>
+                            <p>Hello <b>${oldTeacher.name}</b>,</p>
+                            <p>Please note that the relief duty previously assigned to you for <b>${dateStr} (Period ${assignment.period})</b> has been reassigned to another teacher.</p>
+                            <p><b>You are no longer required to cover this class.</b></p>
+                            <p>Regards,<br/>School Admin</p>
+                        </div>
+                    `
+                });
+            } catch (mailError) {
+                console.error("Cancellation Email Failed:", mailError.message);
+            }
+        }
+
+        // 10. Notification B: Notify the NEW teacher
+        try {
+            await sendEmail({
+                to: newTeacher.email,
+                subject: `Relief Assignment Update: Period ${assignment.period}`,
+                html: `
+                    <div style="font-family: sans-serif; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
+                        <h2 style="color: #2563eb;">Relief Duty Assigned</h2>
+                        <p>Hello <b>${newTeacher.name}</b>,</p>
+                        <p>You have been assigned for a relief duty with the following details:</p>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr><td style="padding: 5px;"><b>Date:</b></td><td>${dateStr}</td></tr>
+                            <tr><td style="padding: 5px;"><b>Period:</b></td><td>${assignment.period}</td></tr>
+                            <tr><td style="padding: 5px;"><b>Grade:</b></td><td>${assignment.grade}</td></tr>
+                            <tr><td style="padding: 5px;"><b>Subject:</b></td><td>${assignment.subject}</td></tr>
+                        </table>
+                        <p>Please log in to the TeachGrid portal to acknowledge this duty.</p>
+                        <p>Regards,<br/>School Admin</p>
+                    </div>
+                `
+            });
+        } catch (mailError) {
+            console.error("Assignment Email Failed:", mailError.message);
+        }
+
         return res.status(200).json({
             success: true,
-            message: "Relief teacher assigned successfully",
+            message: "Relief teacher assigned and notified successfully",
             data: assignment
         });
+
     } catch (error) {
+        console.error("Assignment Error:", error); 
         return res.status(500).json({
             success: false,
             message: error.message
