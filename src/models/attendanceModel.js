@@ -22,8 +22,8 @@ const attendanceSchema = new mongoose.Schema({
         enum: ['unmarked', 'present', 'late', 'leave'],
         default: 'unmarked' 
     },
-    checkIn: { type: String, default: '' },  // e.g., "08:30"
-    checkOut: { type: String, default: '' }, // e.g., "16:30"
+    checkIn: { type: String, default: '' },  
+    checkOut: { type: String, default: '' }, 
 }, { timestamps: true });
 
 // This ensures a teacher cannot have two attendance records for the same day

@@ -107,13 +107,11 @@ export const updateAttendance = async (req, res) => {
             await createReliefAssignmentsForAbsence(record._id);
 
         } else {
-            // This ensures if accidentally marked 'Leave' and fixed it, the relief is cancelled
+            // 1. Remove the Absence record
             await Absence.deleteOne({ teacher: record.teacher, date: record.date });
             
-            // 2. Remove the "ghost" relief assignments
             await ReliefAssignment.deleteMany({ 
-                attendance: record._id, 
-                status: 'pending' // Only delete if a relief teacher hasn't been assigned yet
+                attendance: record._id 
             });
         }
 
