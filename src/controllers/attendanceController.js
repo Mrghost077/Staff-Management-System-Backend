@@ -9,7 +9,7 @@ import { stringify } from 'csv-stringify/sync';
 // 1. Get all users who are teachers
 export const getTeachers = async (req, res) => {
     try {
-        const teachers = await userModel.find({ role: 'teacher' }).select('name email _id');
+        const teachers = await userModel.find({ role: 'teacher' }).select('name email _id subjects');
         res.json(teachers);
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -42,7 +42,7 @@ export const initAttendance = async (req, res) => {
                         teacherName: t.name,
                         date: date,
                         status: 'unmarked',
-                        subject: t.subject || "General"
+                        subject:(t.subjects && t.subjects.length > 0) ? t.subjects[0] : ""
                     }
                 },
                 upsert: true
