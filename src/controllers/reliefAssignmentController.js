@@ -1,43 +1,45 @@
 import Absence from "../models/absenceModel.js";
+import Attendance from "../models/attendanceModel.js";
 import Timetable from "../models/timetable.js";
 import ReliefAssignment from "../models/reliefAssignmentModel.js";
 import userModel from "../models/userModel.js";
+import sendEmail from "../config/nodemailer.js";
 
 // Service: generate relief assignments for a given absence
-export const createReliefAssignmentsForAbsence = async (absenceId) => {
-    const absence = await Absence.findById(absenceId);
-    if (!absence) {
-        const error = new Error("Absence not found");
-        error.statusCode = 404;
-        throw error;
-    }
+export const createReliefAssignmentsForAbsence = async (attendanceId) => {
+    // 1. Find the attendance record
+    const attendance = await Attendance.findById(attendanceId);
+    if (!attendance) throw new Error("Attendance record not found");
 
-    const dayOfWeek = absence.date.toLocaleDateString("en-US", {
+    // 2. FIX: Convert String Date to "Monday", "Tuesday", etc.
+    // If your date is "2026-01-06", this converts it correctly
+    const dayOfWeek = new Date(attendance.date).toLocaleDateString("en-US", {
         weekday: "long"
     });
 
+    // 3. Find the classes this teacher was supposed to teach today
     const timetableEntries = await Timetable.find({
-        teacher: absence.teacher,
-        dayOfWeek
+        teacher: attendance.teacher,
+        dayOfWeek: dayOfWeek
     });
 
-    if (!timetableEntries.length) {
-        return [];
-    }
+    if (!timetableEntries.length) return [];
 
+    // 4. Create a Relief Assignment for every period they are missing
     const creationPromises = timetableEntries.map((slot) =>
         ReliefAssignment.findOneAndUpdate(
-            { absence: absenceId, period: slot.period },
+            { attendance: attendanceId, period: slot.period }, 
             {
-                absence: absenceId,
-                originalTeacher: absence.teacher,
+                attendance: attendanceId,
+                originalTeacher: attendance.teacher,
                 grade: slot.grade ? String(slot.grade) : "",
                 subject: slot.subject,
                 dayOfWeek: slot.dayOfWeek,
+                period: slot.period,
                 reliefTeacher: null,
                 status: "pending"
             },
-            { upsert: true, new: true, setDefaultsOnInsert: true }
+            { upsert: true, new: true }
         )
     );
 
@@ -96,7 +98,11 @@ export const assignReliefTeacher = async (req, res) => {
             });
         }
 
-        const assignment = await ReliefAssignment.findById(id);
+        // 3. Find Assignment 
+        const assignment = await ReliefAssignment.findById(id)
+            .populate('attendance') 
+            .populate('reliefTeacher', 'name email');
+
         if (!assignment) {
             return res.status(404).json({
                 success: false,
@@ -104,29 +110,31 @@ export const assignReliefTeacher = async (req, res) => {
             });
         }
 
-        if (assignment.status === "assigned" && assignment.reliefTeacher) {
-            return res.status(409).json({
-                success: false,
-                message: "Relief teacher already assigned for this slot"
-            });
-        }
+        // DATE EXTRACTION 
+        const rawDate = assignment.attendance?.date || assignment.date;
+        const dateStr = rawDate ? new Date(rawDate).toLocaleDateString() : "Scheduled Date";
 
-        const teacher = await userModel.findById(teacherId);
-        if (!teacher || teacher.role !== "teacher") {
+        // Store reference to the old teacher before overwriting
+        const oldTeacher = assignment.reliefTeacher;
+
+        // 4. Validating the New Relief Teacher
+        const newTeacher = await userModel.findById(teacherId);
+        if (!newTeacher || newTeacher.role !== "teacher") {
             return res.status(404).json({
                 success: false,
                 message: "Relief teacher not found"
             });
         }
 
-        if (String(teacher._id) === String(assignment.originalTeacher)) {
+        // 5. Prevent original teacher from covering their own class
+        if (String(newTeacher._id) === String(assignment.originalTeacher)) {
             return res.status(400).json({
                 success: false,
                 message: "Original teacher cannot be assigned as relief"
             });
         }
 
-        // Check timetable conflicts for the relief teacher
+        // 6. Conflict Check: Timetable
         const conflict = await Timetable.findOne({
             teacher: teacherId,
             dayOfWeek: assignment.dayOfWeek,
@@ -136,12 +144,13 @@ export const assignReliefTeacher = async (req, res) => {
         if (conflict) {
             return res.status(409).json({
                 success: false,
-                message: "Teacher is not available during this period"
+                message: "Teacher has a scheduled class during this period"
             });
         }
 
-        // Ensure the teacher is not already assigned to another relief at this time
+        // 7. Conflict Check: Other Relief Assignments
         const reliefConflict = await ReliefAssignment.findOne({
+            _id: { $ne: id }, 
             reliefTeacher: teacherId,
             dayOfWeek: assignment.dayOfWeek,
             period: assignment.period,
@@ -151,20 +160,69 @@ export const assignReliefTeacher = async (req, res) => {
         if (reliefConflict) {
             return res.status(409).json({
                 success: false,
-                message: "Teacher is already assigned to another relief"
+                message: "Teacher is already assigned to another relief duty in this slot"
             });
         }
 
+        // 8. Update Database
         assignment.reliefTeacher = teacherId;
         assignment.status = "assigned";
         await assignment.save();
 
+        // 9. Notification A: Notify the OLD teacher if they are being replaced
+        if (oldTeacher && String(oldTeacher._id) !== String(teacherId)) {
+            try {
+                await sendEmail({
+                    to: oldTeacher.email,
+                    subject: `Relief Duty Cancelled: Period ${assignment.period}`,
+                    html: `
+                        <div style="font-family: sans-serif; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px;">
+                            <h2 style="color: #dc2626;">Duty Reassigned</h2>
+                            <p>Hello <b>${oldTeacher.name}</b>,</p>
+                            <p>Please note that the relief duty previously assigned to you for <b>${dateStr} (Period ${assignment.period})</b> has been reassigned to another teacher.</p>
+                            <p><b>You are no longer required to cover this class.</b></p>
+                            <p>Regards,<br/>School Admin</p>
+                        </div>
+                    `
+                });
+            } catch (mailError) {
+                console.error("Cancellation Email Failed:", mailError.message);
+            }
+        }
+
+        // 10. Notification B: Notify the NEW teacher
+        try {
+            await sendEmail({
+                to: newTeacher.email,
+                subject: `Relief Assignment Update: Period ${assignment.period}`,
+                html: `
+                    <div style="font-family: sans-serif; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
+                        <h2 style="color: #2563eb;">Relief Duty Assigned</h2>
+                        <p>Hello <b>${newTeacher.name}</b>,</p>
+                        <p>You have been assigned for a relief duty with the following details:</p>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <tr><td style="padding: 5px;"><b>Date:</b></td><td>${dateStr}</td></tr>
+                            <tr><td style="padding: 5px;"><b>Period:</b></td><td>${assignment.period}</td></tr>
+                            <tr><td style="padding: 5px;"><b>Grade:</b></td><td>${assignment.grade}</td></tr>
+                            <tr><td style="padding: 5px;"><b>Subject:</b></td><td>${assignment.subject}</td></tr>
+                        </table>
+                        <p>Please log in to the TeachGrid portal to acknowledge this duty.</p>
+                        <p>Regards,<br/>School Admin</p>
+                    </div>
+                `
+            });
+        } catch (mailError) {
+            console.error("Assignment Email Failed:", mailError.message);
+        }
+
         return res.status(200).json({
             success: true,
-            message: "Relief teacher assigned successfully",
+            message: "Relief teacher assigned and notified successfully",
             data: assignment
         });
+
     } catch (error) {
+        console.error("Assignment Error:", error); 
         return res.status(500).json({
             success: false,
             message: error.message
@@ -196,8 +254,8 @@ export const getReliefAssignments = async (req, res) => {
         const assignments = await ReliefAssignment.find(query)
             .populate({ path: "originalTeacher", select: "-password -verifyOtp -resetOtp -resetOtpExpireAt -verifyOtpExpireAt" })
             .populate({ path: "reliefTeacher", select: "-password -verifyOtp -resetOtp -resetOtpExpireAt -verifyOtpExpireAt" })
-            .populate("absence")
-            .sort({ dayOfWeek: 1, period: 1 });
+            .populate("attendance")
+            .sort({ createdAt: -1 })
 
         return res.status(200).json({
             success: true,
@@ -215,12 +273,12 @@ export const getReliefAssignments = async (req, res) => {
 // Find available teachers for a given period and grade
 export const getAvailableReliefTeachers = async (req, res) => {
     try {
-        const { period, grade, dayOfWeek } = req.query;
+        const { period, dayOfWeek, date, excludeTeacherId } = req.query;
 
-        if (!period || !grade || !dayOfWeek) {
+        if (!period || !dayOfWeek || !date) {
             return res.status(400).json({
                 success: false,
-                message: "period, grade, and dayOfWeek are required"
+                message: "period, dayOfWeek, and date are required"
             });
         }
 
@@ -233,42 +291,56 @@ export const getAvailableReliefTeachers = async (req, res) => {
         }
 
         const numericPeriod = Number(period);
-        if (Number.isNaN(numericPeriod)) {
-            return res.status(400).json({
-                success: false,
-                message: "period must be a number"
-            });
-        }
+        const searchDate = new Date(date);
+        const startOfDay = new Date(searchDate.setHours(0, 0, 0, 0));
+        const endOfDay = new Date(searchDate.setHours(23, 59, 59, 999));
 
-        // Teachers busy with their own classes
+        // 2. BUSY: Teachers with scheduled classes
         const busyTeacherIds = await Timetable.find({
             dayOfWeek,
             period: numericPeriod
         }).distinct("teacher");
 
-        // Teachers already assigned to relief at the same time
-        const assignedReliefIds = await ReliefAssignment.find({
-            dayOfWeek,
+        // 3. BUSY: Teachers already assigned a relief duty for this specific period
+        const assignedReliefDocs = await ReliefAssignment.find({
             period: numericPeriod,
             status: "assigned"
-        }).distinct("reliefTeacher");
+        }).populate({
+            path: 'attendance', 
+            match: { date: { $gte: startOfDay, $lte: endOfDay } }
+        });
 
-        const unavailable = [
-            ...busyTeacherIds.map(String),
-            ...assignedReliefIds.map(String)
-        ];
+        const assignedReliefIds = assignedReliefDocs
+            .filter(doc => doc.attendance)
+            .map(doc => doc.reliefTeacher?.toString())
+            .filter(Boolean);
 
+        // 4. LEAVE: Find ALL teachers who are marked as absent today
+        const absentTeacherIds = await Absence.find({
+            date: { $gte: startOfDay, $lte: endOfDay }
+        }).distinct("teacher");
+
+        // 5. Combine and remove duplicates
+        const unavailable = Array.from(new Set([
+            ...busyTeacherIds.map(id => id.toString()),
+            ...assignedReliefIds,
+            ...absentTeacherIds.map(id => id.toString()),
+            excludeTeacherId?.toString() 
+        ])).filter(Boolean);
+
+        // 6. Find Available: Any teacher NOT in the unavailable list
         const availableTeachers = await userModel.find({
             role: "teacher",
             _id: { $nin: unavailable }
-        });
+        }).select("name email _id subject");
 
         return res.status(200).json({
             success: true,
-            message: "Available relief teachers fetched",
             data: availableTeachers
         });
+
     } catch (error) {
+        console.error("DEBUG ERROR:", error); 
         return res.status(500).json({
             success: false,
             message: error.message
@@ -276,3 +348,39 @@ export const getAvailableReliefTeachers = async (req, res) => {
     }
 };
 
+// Get duties specifically for the logged-in teacher
+export const getTeacherReliefDuties = async (req, res) => {
+    try {
+        const userId = req.userId; // Extracted from token by middleware
+
+        const duties = await ReliefAssignment.find({ reliefTeacher: userId })
+            .populate("attendance") // To get the date
+            .sort({ createdAt: -1 }); // Newest first
+
+        res.status(200).json({ success: true, data: duties });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Allow teacher to update status (e.g., "assigned" -> "completed")
+export const updateReliefStatus = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const updatedDuty = await ReliefAssignment.findByIdAndUpdate(
+            id, 
+            { status }, 
+            { new: true }
+        );
+
+        if (!updatedDuty) {
+            return res.status(404).json({ success: false, message: "Duty not found" });
+        }
+
+        res.status(200).json({ success: true, message: "Status updated", data: updatedDuty });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};

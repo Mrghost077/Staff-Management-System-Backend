@@ -1,15 +1,14 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
-import transporter from "../config/nodemailer.js";
+import sendEmail from "../config/nodemailer.js";
 
 // Controller for Registering new User
 export const register = async (req, res ) => {
-    const {name , email, password, phoneNum, role, dateOfBirth, address } = req.body;
+    const {name , email, password, phoneNum, role, dateOfBirth, address, subjects} = req.body;
 
-    if (!name || !email || !password || !role || !dateOfBirth || !address) {
+    if (!name || !email || !password || !role || !dateOfBirth || !address || (role.toLowerCase() === 'teacher' && (!subjects || subjects.length === 0))) {
         return res.json ({success : false , message : "Missing Details "})
-
     }
 
     try {
@@ -18,10 +17,20 @@ export const register = async (req, res ) => {
         if (existingUser){
             return res.json ({success: false, message: "User Already exists"});
         }
+        
         // encrypting the password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        const user = new userModel({name, email, password: hashedPassword, phoneNum, role, dateOfBirth, address});
+        const user = new userModel({
+            name, 
+            email, 
+            password: hashedPassword, 
+            phoneNum, 
+            role, 
+            dateOfBirth, 
+            address, 
+            subjects: (role.toLowerCase() === 'teacher' && subjects) ? subjects : []
+        });
         await user.save();
 
         // Jwt token generate
@@ -39,19 +48,110 @@ export const register = async (req, res ) => {
         const mailOptions = {
             from: process.env.SENDER_EMAIL,
             to: email,
-            subject: 'Welcome to Teach Grid',
-            text: `Hello ${name} !, Your teachGrid account has been successfully created. 
-            your login details: [Email: ${email}, Password: ${password}]. 
-            For your Security please sign in and change your password before using the system.
-            
-            If you did not request this account or believe this is a mistake, contact support at support@teachgrid.com.`
+            subject: 'Welcome to TeachGrid! 🎉 Your Account is Ready',
+            html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Welcome to TeachGrid</title>
+        </head>
+        <body style="margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif; background-color: #f8fafc; line-height: 1.6;">
+            <div style="max-width: 600px; margin: 0 auto; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 20px;">
+                
+                <div style="background: white; border-radius: 20px; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04); overflow: hidden; margin-bottom: 30px;">
+                    
+                    <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px 30px; text-align: center;">
+                        <div style="width: 80px; height: 80px; background: rgba(255,255,255,0.2); border-radius: 20px; margin: 0 auto 20px; display: flex; align-items: center; justify-content: center; font-size: 32px;">
+                            👨‍🏫
+                        </div>
+                        <h1 style="color: white; font-size: 28px; font-weight: 700; margin: 0 0 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.1);">Welcome to TeachGrid!</h1>
+                        <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0; font-weight: 300;">Your account has been successfully created</p>
+                    </div>
+
+                    <div style="padding: 40px 30px;">
+                        <h2 style="color: #1e293b; font-size: 24px; font-weight: 600; margin: 0 0 20px;">Hello ${name}!</h2>
+                        
+                        <p style="color: #64748b; font-size: 16px; margin: 0 0 30px; line-height: 1.7;">
+                            Your TeachGrid account is ready to use! We're excited to have you on board.
+                        </p>
+
+                        <div style="background: #f8fafc; border-radius: 16px; border-left: 4px solid #10b981; padding: 25px; margin: 0 0 30px;">
+                            <div style="display: flex; align-items: center; margin-bottom: 15px;">
+                                <div style="width: 40px; height: 40px; background: #10b981; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-right: 15px;">
+                                    <svg style="width: 20px; height: 20px; fill: white;" viewBox="0 0 24 24">
+                                        <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                                    </svg>
+                                </div>
+                                <h3 style="color: #1e293b; font-size: 18px; font-weight: 600; margin: 0;">Your Login Details</h3>
+                            </div>
+                            <div style="background: white; border-radius: 12px; padding: 20px; border: 1px solid #e2e8f0;">
+                                <div style="display: grid; grid-template-columns: 120px 1fr; gap: 15px; align-items: center;">
+                                    <span style="color: #64748b; font-weight: 500;">Email:</span>
+                                    <code style="background: #f1f5f9; color: #1e293b; padding: 8px 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; font-weight: 600;">${email}</code>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 120px 1fr; gap: 15px; align-items: center; margin-top: 10px;">
+                                    <span style="color: #64748b; font-weight: 500;">Password:</span>
+                                    <code style="background: #fef3c7; color: #92400e; padding: 8px 12px; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 14px; font-weight: 600;">${password}</code>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style="background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%); border-radius: 12px; padding: 20px; border-left: 4px solid #f59e0b; margin-bottom: 30px;">
+                            <h4 style="color: #92400e; font-size: 16px; font-weight: 600; margin: 0 0 10px; display: flex; align-items: center;">
+                                🔒 Security Notice
+                            </h4>
+                            <p style="color: #92400e; font-size: 14px; margin: 0; line-height: 1.5;">
+                                For your security, please sign in and <strong>change your password</strong> immediately after first login.
+                            </p>
+                        </div>
+
+                        <div style="text-align: center; margin: 30px 0;">
+                            <a href="https://teachgrid.com/login" style="display: inline-block; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 16px 40px; border-radius: 12px; text-decoration: none; font-weight: 600; font-size: 16px; box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4); transition: all 0.3s ease;">
+                                Sign In Now →
+                            </a>
+                        </div>
+
+                        <div style="text-align: center; padding-top: 30px; border-top: 1px solid #e2e8f0;">
+                            <p style="color: #64748b; font-size: 14px; margin: 0 0 10px;">
+                                Need help? Contact our support team:
+                            </p>
+                            <a href="mailto:support@teachgrid.com" style="color: #667eea; font-weight: 600; text-decoration: none; font-size: 16px;">
+                                support@teachgrid.com
+                            </a>
+                        </div>
+                    </div>
+
+                    <div style="background: #f8fafc; padding: 25px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                        <p style="color: #94a3b8; font-size: 14px; margin: 0; line-height: 1.5;">
+                            © 2026 TeachGrid. All rights reserved.<br>
+                            <span style="font-size: 12px;">You received this email because your account was created on TeachGrid.</span>
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </body>
+        </html>
+            `.trim()
+        };
+
+        let emailWarning = null;
+
+        try {
+            await sendEmail(mailOptions);
+        } catch (emailError) {
+            console.error("Email Sending Failed:", emailError.message);
+            emailWarning = `Account created, but the welcome email failed: ${emailError.message}`;
         }
 
-        await transporter.sendMail(mailOptions);
+        return res.json({
+            success: true, 
+            message: emailWarning || "Account created successfully and email sent.",
+            emailSent: !emailWarning 
+        });
 
-        return res.json({success: true});
-    }
-    catch(error){
+    } catch(error){
         res.json ({success: false, message: error.message})
     }
 }

@@ -8,12 +8,19 @@ const userSchema = new mongoose.Schema({
    phoneNum : {type: Number , required : true},
     address: {type: String, required: true},
     dateOfBirth: {type: Date, required: true},
+
    //Role 
    role : {type: String,
             enum: ["admin", "teacher"],
             default: "teacher",
             required: true
    },
+
+   // teacher expertise subject 
+   subjects: {
+    type: [String],
+    default: []
+  },
 
    // data for verification
    verifyOtp : {type: String, default: ''},

@@ -1,13 +1,15 @@
 import userModel from "../models/userModel.js";
 import attendanceModel from "../models/attendanceModel.js";
 import Absence from "../models/absenceModel.js"; 
+import ReliefAssignment from "../models/reliefAssignmentModel.js";
+import { createReliefAssignmentsForAbsence } from "./reliefAssignmentController.js";
 import PDFDocument from 'pdfkit';
 import { stringify } from 'csv-stringify/sync';
 
 // 1. Get all users who are teachers
 export const getTeachers = async (req, res) => {
     try {
-        const teachers = await userModel.find({ role: 'teacher' }).select('name email _id');
+        const teachers = await userModel.find({ role: 'teacher' }).select('name email _id subjects');
         res.json(teachers);
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
@@ -40,7 +42,7 @@ export const initAttendance = async (req, res) => {
                         teacherName: t.name,
                         date: date,
                         status: 'unmarked',
-                        subject: t.subject || "General"
+                        subject:(t.subjects && t.subjects.length > 0) ? t.subjects[0] : ""
                     }
                 },
                 upsert: true
@@ -77,12 +79,13 @@ export const getAttendanceByDate = async (req, res) => {
     }
 };
 
-// 4. Update attendance status (Syncs with Absence model)
+// 4. Update attendance status (Syncs with Absence & Relief models)
 export const updateAttendance = async (req, res) => {
     try {
         const { id } = req.params;
         const { status, checkIn, checkOut, subject } = req.body;
 
+        // 1. Update the record in the attendance table
         const record = await attendanceModel.findByIdAndUpdate(
             id, 
             { status, checkIn, checkOut, subject }, 
@@ -91,21 +94,30 @@ export const updateAttendance = async (req, res) => {
 
         if (!record) return res.status(404).json({ message: "Record not found" });
 
-        // SYNC LOGIC with your Absence model
+        // 2. SYNC LOGIC
         if (status === 'leave') {
-            // Create or update Absence record
+            // A. Update the Absence collection
             await Absence.findOneAndUpdate(
-                { teacher: record.teacher, date: new Date(record.date) },
+                { teacher: record.teacher, date: record.date }, 
                 { reason: "Marked via Attendance System" },
                 { upsert: true }
             );
+
+            // creating relief assignment for the absence
+            await createReliefAssignmentsForAbsence(record._id);
+
         } else {
-            // If status changed from 'leave' to 'present/late', remove from Absence collection
-            await Absence.deleteOne({ teacher: record.teacher, date: new Date(record.date) });
+            // 1. Remove the Absence record
+            await Absence.deleteOne({ teacher: record.teacher, date: record.date });
+            
+            await ReliefAssignment.deleteMany({ 
+                attendance: record._id 
+            });
         }
 
         res.json({ success: true, record });
     } catch (error) {
+        console.error("Attendance Update Error:", error);
         res.status(500).json({ success: false, message: error.message });
     }
 };
