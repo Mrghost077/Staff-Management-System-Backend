@@ -122,9 +122,27 @@ export const updateStatus = async (req, res) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
+
+        // to get update document back
+        const updatedLeave = await leaveModel.findByIdAndUpdate(
+            id, 
+            { status }, 
+            { new: true } 
+        );
+
+        if (!updatedLeave) {
+            return res.status(404).json({ 
+                success: false, 
+                message: "Leave request not found" 
+            });
+        }
+
+        res.json({ 
+            success: true, 
+            message: `Leave has been ${status.toLowerCase()} successfully`,
+            data: updatedLeave
+        });
         
-        await leaveModel.findByIdAndUpdate(id, { status });
-        res.json({ success: true, message: `Leave ${status} successfully` });
     } catch (error) {
         res.json({ success: false, message: error.message });
     }

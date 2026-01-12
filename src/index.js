@@ -40,8 +40,6 @@ app.use("/api/timetable", timetableRoutes);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/leave', leaveRouter);
 
-// For Uploads
-app.use('/uploads', express.static('uploads'));
 
 /* Test */
 app.get("/api/test", (req, res) => {
