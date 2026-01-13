@@ -28,7 +28,7 @@ export const getTeacherDashboard = async (req, res) => {
       status: "Approved",
     });
 
-    const totalLeaves = 5; // fixed or config based
+    const totalLeaves = 40; // fixed or config based
 
     /* Relief Duties */
     const reliefDuties = await ReliefAssignment.countDocuments({
@@ -37,10 +37,18 @@ export const getTeacherDashboard = async (req, res) => {
     });
 
     /* Upcoming Relief */
-    const upcomingRelief = await ReliefAssignment.findOne({
+    const upcomingReliefList = await ReliefAssignment.find({
       teacher: teacherId,
+      completed: false,
       date: { $gte: new Date() },
-    }).sort({ date: 1 });
+    })
+      .sort({ date: 1 })
+      .limit(1);
+
+    const upcomingRelief =
+      upcomingReliefList.length > 0 ? upcomingReliefList[0] : null;
+
+      
 
     /* Latest Announcement */
     const latestAnnouncement = await Announcement.findOne()
