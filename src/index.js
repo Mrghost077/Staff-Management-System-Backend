@@ -12,6 +12,8 @@ import announcementRoutes from "./routes/announcements.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
 import attendanceRouter from "./routes/attendanceRoutes.js";
 import leaveRouter from "./routes/leaveRoutes.js";
+import adminRouter from "./routes/adminRoutes.js";
+import teacherRouter  from "./routes/teacherRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3301;
@@ -39,7 +41,8 @@ app.use("/api/announcements", announcementRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use('/api/attendance', attendanceRouter);
 app.use('/api/leave', leaveRouter);
-
+app.use('/api/admin', adminRouter);
+app.use('/api/teacher', teacherRouter);
 
 /* Test */
 app.get("/api/test", (req, res) => {
