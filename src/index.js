@@ -11,6 +11,7 @@ import reliefAssignmentRouter from "./routes/reliefAssignmentRoutes.js";
 import announcementRoutes from "./routes/announcements.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
 import attendanceRouter from "./routes/attendanceRoutes.js";
+import leaveRouter from "./routes/leaveRoutes.js";
 
 const app = express();
 const PORT = process.env.PORT || 3301;
@@ -37,6 +38,8 @@ app.use("/api/relief-assignments", reliefAssignmentRouter);
 app.use("/api/announcements", announcementRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use('/api/attendance', attendanceRouter);
+app.use('/api/leave', leaveRouter);
+
 
 /* Test */
 app.get("/api/test", (req, res) => {
