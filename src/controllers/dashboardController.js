@@ -32,7 +32,7 @@ export const getTeacherDashboard = async (req, res) => {
       status: "completed",
     });
 
-    /* Upcoming Relief */
+    /* Upcoming Relief Duties */
     const upcomingRelief  = await ReliefAssignment.findOne({
       reliefTeacher: teacherId,
       status: "assigned",
