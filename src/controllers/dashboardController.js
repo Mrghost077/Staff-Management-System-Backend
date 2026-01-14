@@ -2,6 +2,7 @@ import Attendance from "../models/attendanceModel.js";
 import Absence from "../models/absenceModel.js";
 import ReliefAssignment from "../models/reliefAssignmentModel.js";
 import Announcement from "../models/announcementModel.js";
+import leaveModel from "../models/leaveModel.js";
 
 export const getTeacherDashboard = async (req, res) => {
   try {
@@ -12,19 +13,15 @@ export const getTeacherDashboard = async (req, res) => {
       teacher: teacherId,
     });
 
-    const presentAttendance = await Attendance.countDocuments({
+    const attendanceCount   = await Attendance.countDocuments({
       teacher: teacherId,
-      status: "Present",
+      status: "present",
     });
 
-    const attendanceRate =
-      totalAttendance === 0
-        ? 0
-        : Math.round((presentAttendance / totalAttendance) * 100);
 
-    /* Leaves */
-    const approvedLeaves = await Absence.countDocuments({
-      teacher: teacherId,
+    /*approved Leaves */
+    const approvedLeaves = await leaveModel.countDocuments({
+      teacherId: teacherId,
       status: "Approved",
     });
 
@@ -50,7 +47,7 @@ export const getTeacherDashboard = async (req, res) => {
       .sort({ createdAt: -1 });
 
     res.status(200).json({
-      attendanceRate,
+      attendanceCount,
       approvedLeaves: `${approvedLeaves} / ${totalLeaves}`,
       reliefDuties,
       upcomingRelief: upcomingRelief || null, 
