@@ -24,7 +24,7 @@ export const getTeacherDashboard = async (req, res) => {
       status: "Approved",
     });
 
-    const totalLeaves = 40; 
+    const totalLeaves = 41; 
 
     /* Relief Duties */
     const reliefDuties = await ReliefAssignment.countDocuments({
