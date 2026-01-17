@@ -46,7 +46,7 @@ export const updateAdminProfile = async (req, res) => {
     const signinUrl = `${frontendUrl}/signin`;
 
     const mailOptions = {
-      from: '"TeachGrid Admin Services" <admin@teachgrid.com>',
+      from:  process.env.SENDER_EMAIL,
       to: updatedAdmin.email,
       subject: "Profile Updated Successfully - TeachGrid",
       html: `

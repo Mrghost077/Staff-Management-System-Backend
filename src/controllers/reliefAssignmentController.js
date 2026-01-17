@@ -4,6 +4,7 @@ import Timetable from "../models/timetable.js";
 import ReliefAssignment from "../models/reliefAssignmentModel.js";
 import userModel from "../models/userModel.js";
 import sendEmail from "../config/nodemailer.js";
+import { RELIEF_REASSIGNMENT_CANCELLATION, RELIEF_ASSIGNED } from "../config/emailTemplate.js";
 
 // Service: generate relief assignments for a given absence
 export const createReliefAssignmentsForAbsence = async (attendanceId) => {
@@ -175,15 +176,7 @@ export const assignReliefTeacher = async (req, res) => {
                 await sendEmail({
                     to: oldTeacher.email,
                     subject: `Relief Duty Cancelled: Period ${assignment.period}`,
-                    html: `
-                        <div style="font-family: sans-serif; border: 1px solid #fee2e2; padding: 20px; border-radius: 8px;">
-                            <h2 style="color: #dc2626;">Duty Reassigned</h2>
-                            <p>Hello <b>${oldTeacher.name}</b>,</p>
-                            <p>Please note that the relief duty previously assigned to you for <b>${dateStr} (Period ${assignment.period})</b> has been reassigned to another teacher.</p>
-                            <p><b>You are no longer required to cover this class.</b></p>
-                            <p>Regards,<br/>School Admin</p>
-                        </div>
-                    `
+                    html: RELIEF_REASSIGNMENT_CANCELLATION(oldTeacher.name, dateStr, assignment.period)
                 });
             } catch (mailError) {
                 console.error("Cancellation Email Failed:", mailError.message);
@@ -195,21 +188,7 @@ export const assignReliefTeacher = async (req, res) => {
             await sendEmail({
                 to: newTeacher.email,
                 subject: `Relief Assignment Update: Period ${assignment.period}`,
-                html: `
-                    <div style="font-family: sans-serif; border: 1px solid #eee; padding: 20px; border-radius: 8px;">
-                        <h2 style="color: #2563eb;">Relief Duty Assigned</h2>
-                        <p>Hello <b>${newTeacher.name}</b>,</p>
-                        <p>You have been assigned for a relief duty with the following details:</p>
-                        <table style="width: 100%; border-collapse: collapse;">
-                            <tr><td style="padding: 5px;"><b>Date:</b></td><td>${dateStr}</td></tr>
-                            <tr><td style="padding: 5px;"><b>Period:</b></td><td>${assignment.period}</td></tr>
-                            <tr><td style="padding: 5px;"><b>Grade:</b></td><td>${assignment.grade}</td></tr>
-                            <tr><td style="padding: 5px;"><b>Subject:</b></td><td>${assignment.subject}</td></tr>
-                        </table>
-                        <p>Please log in to the TeachGrid portal to acknowledge this duty.</p>
-                        <p>Regards,<br/>School Admin</p>
-                    </div>
-                `
+                html: RELIEF_ASSIGNED(newTeacher.name, dateStr, assignment)
             });
         } catch (mailError) {
             console.error("Assignment Email Failed:", mailError.message);
