@@ -8,6 +8,7 @@ const userSchema = new mongoose.Schema({
    phoneNum : {type: Number , required : true},
     address: {type: String, required: true},
     dateOfBirth: {type: Date, required: true},
+    avatar: { type: String, default: "" },
 
    //Role 
    role : {type: String,
