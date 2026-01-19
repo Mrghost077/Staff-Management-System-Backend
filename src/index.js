@@ -8,7 +8,7 @@ import authRouter from "./routes/authRoutes.js";
 import userRouter from "./routes/userRoutes.js";
 import absenceRouter from "./routes/absenceRoutes.js";
 import reliefAssignmentRouter from "./routes/reliefAssignmentRoutes.js";
-import announcementRoutes from "./routes/announcements.js";
+import announcementRoutes from "./routes/announcementRoutes.js";
 import timetableRoutes from "./routes/timetableRoutes.js";
 import attendanceRouter from "./routes/attendanceRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
