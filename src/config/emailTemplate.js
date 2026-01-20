@@ -205,3 +205,78 @@ export const RELIEF_ASSIGNED = (newTeacherName, dateStr, assignment) => {
 </body>
 </html>`.trim();
 }
+
+// email template for anouncemnt
+export const ANNOUNCEMENT_TEMPLATE = (title, content, category, priority) => {
+    // Logic to change priority badge color dynamically
+    const priorityGradient = priority === 'High' 
+        ? 'linear-gradient(135deg, #e11d48 0%, #be123c 100%)' // Red for High
+        : 'linear-gradient(135deg, #059669 0%, #10b981 100%)'; // Green for Normal/Low
+
+    return `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${title} - TeachGrid Announcement</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f7f9fc; line-height: 1.6; color: #334155;">
+    
+    <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+        <div style="background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); overflow: hidden; border: 1px solid #e2e8f0;">
+            
+            <div style="background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%); padding: 30px; text-align: center;">
+                <div style="width: 56px; height: 56px; background: rgba(255,255,255,0.15); border-radius: 14px; margin: 0 auto 16px; display: flex; align-items: center; justify-content: center; font-size: 24px;">
+                    📢
+                </div>
+                <h1 style="color: white; font-size: 24px; font-weight: 600; margin: 0 0 4px; letter-spacing: -0.025em;">School Announcement</h1>
+                <p style="color: rgba(255,255,255,0.9); font-size: 15px; margin: 0; font-weight: 400;">H/Meegasara Maha Vidyalaya - TeachGrid</p>
+            </div>
+
+            <div style="padding: 20px 30px 10px;">
+                <div style="display: flex; gap: 12px; align-items: center;">
+                    <span style="background: #f1f5f9; color: #64748b; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; border: 1px solid #e2e8f0;">
+                        ${category}
+                    </span>
+                    <span style="background: ${priorityGradient}; color: white; padding: 6px 14px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+                        ${priority} Priority
+                    </span>
+                </div>
+            </div>
+
+            <div style="padding: 0 30px 30px;">
+                <h2 style="color: #0f172a; font-size: 22px; font-weight: 700; margin: 10px 0 20px; letter-spacing: -0.025em; line-height: 1.3;">
+                    ${title}
+                </h2>
+
+                <div style="background: #f8fafc; border-radius: 12px; border-left: 5px solid #1d4ed8; padding: 24px; margin-bottom: 30px; border: 1px solid #e2e8f0;">
+                    <div style="font-size: 16px; color: #334155; line-height: 1.7; margin: 0;">
+                        ${content}
+                    </div>
+                </div>
+            </div>
+
+            <div style="text-align: center; padding: 20px 30px; border-top: 1px solid #f1f5f9;">
+                <p style="color: #64748b; font-size: 13px; margin: 0 0 8px;">
+                    Questions about this announcement?
+                </p>
+                <a href="mailto:support@teachgrid.com" style="color: #1d4ed8; font-weight: 600; text-decoration: none; font-size: 14px;">
+                    support@teachgrid.com
+                </a>
+            </div>
+
+            <div style="background: #f8fafc; padding: 25px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                <p style="color: #94a3b8; font-size: 12px; margin: 0 0 4px; line-height: 1.5;">
+                    Sent by H/Meegasara Maha Vidyalaya Administration via TeachGrid
+                </p>
+                <p style="color: #94a3b8; font-size: 11px; margin: 0; line-height: 1.4;">
+                    Please do not reply to this automated email.
+                </p>
+            </div>
+        </div>
+    </div>
+</body>
+</html>
+    `.trim();
+};
