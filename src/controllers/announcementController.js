@@ -1,5 +1,9 @@
 import Announcement from '../models/announcementModel.js'
+import userModel from "../models/userModel.js";
+import sendEmail from "../config/nodemailer.js";
+import { ANNOUNCEMENT_TEMPLATE } from '../config/emailTemplate.js';
 
+// CREATE announcement
 // CREATE announcement
 export const createAnnouncement = async (req, res) => {
   try {
@@ -17,12 +21,31 @@ export const createAnnouncement = async (req, res) => {
       author,
     })
 
+    const teachers = await userModel.find({ role: 'teacher' }).select('email');
+    const recipientEmails = teachers.map(teacher => teacher.email);
+
+    const mailOptions = {
+      from: process.env.SENDER_EMAIL,
+      to: recipientEmails.join(','), 
+      subject: `School Announcement: ${title}`,
+      html: ANNOUNCEMENT_TEMPLATE(title, content, category, priority),
+    };
+
+
+    try {
+        await sendEmail(mailOptions);
+      } catch (emailErr) {
+        console.error('Email failed to send, but announcement was created:', emailErr);
+        // We don't return an error response here because the announcement WAS created
+      }
+
     res.status(201).json(announcement)
   } catch (err) {
     console.error('Create announcement error:', err)
     res.status(500).json({ message: err.message })
   }
 }
+
 
 // GET all announcements (with filters)
 export const getAnnouncements = async (req, res) => {
