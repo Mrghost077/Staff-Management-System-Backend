@@ -1,6 +1,6 @@
 import User from "../models/userModel.js";
 import bcrypt from "bcryptjs";
-import sendEmail from "../config/nodemailer.js";
+import sendEmail from "../config/sendEmail.js";
 import { v2 as cloudinary } from "cloudinary";
 
 // GET ADMIN PROFILE

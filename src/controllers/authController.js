@@ -1,7 +1,7 @@
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import userModel from "../models/userModel.js";
-import sendEmail from "../config/nodemailer.js";
+import sendEmail from "../config/sendEmail.js";
 import { NEW_USER_REGISTRY } from "../config/emailTemplate.js";
 
 // Controller for Registering new User

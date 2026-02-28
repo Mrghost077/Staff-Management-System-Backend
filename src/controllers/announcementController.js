@@ -1,6 +1,6 @@
 import Announcement from '../models/announcementModel.js'
 import userModel from "../models/userModel.js";
-import sendEmail from "../config/nodemailer.js";
+import sendEmail from "../config/sendEmail.js";
 import { ANNOUNCEMENT_TEMPLATE } from '../config/emailTemplate.js';
 
 // CREATE announcement

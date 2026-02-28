@@ -1,21 +1,12 @@
 import User from "../models/userModel.js";
 import bcrypt from "bcryptjs";
-import nodemailer from "nodemailer";
+import sendEmail from "../config/sendEmail.js";
 import { v2 as cloudinary } from "cloudinary";
 
-// Cloudinary Configuration
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
   api_key: process.env.CLOUDINARY_API_KEY,
   api_secret: process.env.CLOUDINARY_API_SECRET,
-});
-
-const transporter = nodemailer.createTransport({
-  service: "gmail", 
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
 });
 
 // reusable email template function
@@ -25,67 +16,99 @@ const getEmailTemplate = (user, isPasswordChanged) => {
   const statusLabel = isPasswordChanged ? "Security Alert" : "System Update";
 
   return `
-    <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; color: #1f2937; border-radius: 16px; overflow: hidden; border: 1px solid #e5e7eb;">
-      
-      <div style="background-color: ${primaryColor}; padding: 35px 20px; text-align: center;">
-        <div style="margin-bottom: 12px;">
-          <span style="background-color: rgba(255, 255, 255, 0.2); color: #ffffff; padding: 5px 12px; border-radius: 50px; font-size: 11px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase;">
-            ${statusLabel}
-          </span>
+    <!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${isPasswordChanged ? 'Password Changed Successfully' : 'Profile Updated - TeachGrid'}</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #f7f9fc; line-height: 1.6; color: #334155;">
+    
+    <div style="max-width: 600px; margin: 0 auto; padding: 40px 20px;">
+        <div style="background: white; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.08); overflow: hidden; border: 1px solid #e2e8f0;">
+            
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, ${primaryColor}, ${primaryColor}cc); padding: 40px 30px; text-align: center;">
+                <div style="margin-bottom: 16px;">
+                    <span style="background: rgba(255,255,255,0.2); color: white; padding: 8px 16px; border-radius: 50px; font-size: 12px; font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase;">
+                        ${statusLabel}
+                    </span>
+                </div>
+                <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 600; line-height: 1.4; letter-spacing: -0.025em;">
+                    ${isPasswordChanged ? 'Password Changed Successfully' : 'Teacher Profile Updated'}
+                </h1>
+            </div>
+
+            <!-- Main Content -->
+            <div style="padding: 40px 30px;">
+                <p style="margin-top: 0; font-size: 16px; color: #0f172a; line-height: 1.7;">
+                    Hello <strong>${user.name}</strong>,
+                </p>
+                
+                <p style="font-size: 15px; line-height: 1.7; color: #475569; margin-bottom: 30px;">
+                    ${isPasswordChanged 
+                      ? 'Your account password has been updated successfully. If you did not make this change, please take action immediately by contacting support.' 
+                      : 'Your profile details have been successfully updated in the TeachGrid system for H/Meegasara Maha Vidyalaya. Please review the summary below.'}
+                </p>
+
+                <!-- Account Summary Card -->
+                <div style="background: ${bgColor}; border-radius: 12px; padding: 28px; border: 1px solid rgba(0,0,0,0.05); margin-bottom: 30px;">
+                    <h3 style="margin: 0 0 24px; font-size: 14px; text-transform: uppercase; letter-spacing: 0.05em; color: ${primaryColor}; font-weight: 600;">
+                        Account Summary
+                    </h3>
+                    
+                    <div style="display: grid; grid-template-columns: 120px 1fr; gap: 20px; align-items: center;">
+                        <span style="color: #64748b; font-weight: 500; font-size: 15px;">Full Name</span>
+                        <div style="color: #1e293b; font-weight: 600; font-size: 15px; text-align: right; word-break: break-word;">
+                            ${user.name}
+                        </div>
+                        
+                        <span style="color: #64748b; font-weight: 500; font-size: 15px;">Email</span>
+                        <div style="color: #1e293b; font-weight: 600; font-size: 15px; text-align: right; word-break: break-all;">
+                            ${user.email}
+                        </div>
+                        
+                        <span style="color: #64748b; font-weight: 500; font-size: 15px;">Contact</span>
+                        <div style="color: #1e293b; font-weight: 600; font-size: 15px; text-align: right; word-break: break-word;">
+                            ${user.phoneNum || 'Not Provided'}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Notice for Password Change -->
+                ${isPasswordChanged ? `
+                <div style="background: linear-gradient(90deg, #fef3c7 0%, #fde68a 100%); border-radius: 10px; padding: 20px; border-left: 4px solid #f59e0b; margin-bottom: 30px;">
+                    <p style="color: #92400e; font-size: 15px; margin: 0; line-height: 1.6; font-weight: 500;">
+                        <strong>🔒 Security Notice:</strong> If this password change was not initiated by you, please contact support immediately at <a href="mailto:support@teachgrid.com" style="color: #d97706;">support@teachgrid.com</a>.
+                    </p>
+                </div>
+                ` : ''}
+
+                <!-- Support -->
+                <div style="text-align: center; padding-top: 30px; border-top: 1px solid #e2e8f0; padding-bottom: 20px;">
+                    <p style="color: #64748b; font-size: 14px; margin: 0 0 12px; line-height: 1.5;">
+                        Questions about this update? Contact our support team:
+                    </p>
+                    <a href="mailto:support@teachgrid.com" style="color: #1d4ed8; font-weight: 600; text-decoration: none; font-size: 16px; letter-spacing: -0.025em;">
+                        support@teachgrid.com
+                    </a>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div style="background: #f8fafc; padding: 25px 30px; text-align: center; border-top: 1px solid #e2e8f0;">
+                <p style="color: #94a3b8; font-size: 14px; margin: 0 0 4px; line-height: 1.5;">
+                    © 2026 TeachGrid - H/Meegasara Maha Vidyalaya
+                </p>
+                <p style="color: #94a3b8; font-size: 13px; margin: 0; line-height: 1.4;">
+                    This is an automated notification from the TeachGrid system.
+                </p>
+            </div>
         </div>
-        <h1 style="color: #ffffff; margin: 0; font-size: 22px; font-weight: 700; line-height: 1.3;">
-          ${isPasswordChanged ? 'Password Changed <br/> Successfully' : 'Teacher Profile <br/> Updated Successfully'}
-        </h1>
-      </div>
-
-      <div style="padding: 30px 40px;">
-        <p style="margin-top: 0; font-size: 16px; color: #111827;">Hello <b>${user.name}</b>,</p>
-        <p style="font-size: 14px; line-height: 1.6; color: #4b5563; margin-bottom: 25px;">
-          ${isPasswordChanged 
-            ? `Your account password has been updated. If you did not make this change, please take action immediately.` 
-            : `Your profile details have been successfully updated in the TeachGrid system. Please review the summary below.`}
-        </p>
-
-        <div style="background-color: ${bgColor}; border-radius: 12px; padding: 20px; border: 1px solid rgba(0,0,0,0.03);">
-          <h3 style="margin-top: 0; font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: ${primaryColor}; margin-bottom: 15px; font-weight: 700;">
-            Account Summary
-          </h3>
-          
-          <table style="width: 100%; border-collapse: collapse; table-layout: fixed;">
-            <tr>
-              <td style="padding: 10px 0; font-size: 13px; color: #6b7280; width: 40%; vertical-align: top; border-bottom: 1px solid rgba(0,0,0,0.05);">Full Name</td>
-              <td style="padding: 10px 0; font-size: 13px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.05); word-wrap: break-word;">${user.name}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px 0; font-size: 13px; color: #6b7280; width: 40%; vertical-align: top; border-bottom: 1px solid rgba(0,0,0,0.05);">Email</td>
-              <td style="padding: 10px 0; font-size: 13px; color: #111827; font-weight: 600; text-align: right; border-bottom: 1px solid rgba(0,0,0,0.05); word-wrap: break-word;">${user.email}</td>
-            </tr>
-            <tr>
-              <td style="padding: 10px 0; font-size: 13px; color: #6b7280; width: 40%; vertical-align: top;">Contact</td>
-              <td style="padding: 10px 0; font-size: 13px; color: #111827; font-weight: 600; text-align: right; word-wrap: break-word;">${user.phoneNum || 'Not Provided'}</td>
-            </tr>
-          </table>
-        </div>
-
-        <div style="text-align: center; margin: 30px 0;">
-          <a href="${process.env.FRONTEND_URL}/signin" style="background-color: #111827; color: #ffffff; padding: 12px 30px; text-decoration: none; border-radius: 8px; font-weight: 600; font-size: 14px; display: inline-block;">
-            Login to Dashboard
-          </a>
-        </div>
-
-        <div style="border-top: 1px dotted #e5e7eb; padding-top: 20px; text-align: center;">
-          <p style="font-size: 12px; color: #9ca3af; margin: 0;">
-            This is an automated notification. If you have any questions, please contact TeachGrid Support.
-          </p>
-        </div>
-      </div>
-
-      <div style="background-color: #f9fafb; padding: 25px; text-align: center;">
-        <p style="margin: 0; font-size: 11px; color: #9ca3af; font-weight: 600; text-transform: uppercase; letter-spacing: 1px;">
-          &copy; ${new Date().getFullYear()} TeachGrid
-        </p>
-      </div>
     </div>
+</body>
+</html>
   `;
 };
 
@@ -117,8 +140,7 @@ export const updateTeacherSettings = async (req, res) => {
     }
 
     try {
-      await transporter.sendMail({
-        from: `"TeachGrid Support" <${process.env.SENDER_EMAIL}>`,
+      await sendEmail({
         to: updatedTeacher.email,
         subject: "Success: Profile Settings Updated",
         html: getEmailTemplate(updatedTeacher, false),
@@ -183,8 +205,7 @@ export const resetTeacherPassword = async (req, res) => {
 
     // Send Email on Password Reset
     try {
-      await transporter.sendMail({
-        from: `"TeachGrid Security" <${process.env.SENDER_EMAIL}>`,
+      await sendEmail({
         to: teacher.email,
         subject: "Security Alert: Your Password was Changed",
         html: getEmailTemplate(teacher, true),

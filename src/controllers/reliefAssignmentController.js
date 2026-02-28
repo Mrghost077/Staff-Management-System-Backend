@@ -3,7 +3,7 @@ import Attendance from "../models/attendanceModel.js";
 import Timetable from "../models/timetable.js";
 import ReliefAssignment from "../models/reliefAssignmentModel.js";
 import userModel from "../models/userModel.js";
-import sendEmail from "../config/nodemailer.js";
+import sendEmail from "../config/sendEmail.js";
 import { RELIEF_REASSIGNMENT_CANCELLATION, RELIEF_ASSIGNED } from "../config/emailTemplate.js";
 
 // Service: generate relief assignments for a given absence
