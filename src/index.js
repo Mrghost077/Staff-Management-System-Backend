@@ -1,26 +1,67 @@
-// ----------------------------Third-party libraries & modules----------------------------
-const express = require("express");
-const cors = require("cors");
+import express from "express";
+import cors from "cors";
+import "dotenv/config";
+import cookieParser from "cookie-parser";
 
-// Global instances
+import connectDB from "./config/mongodb.js";
+import authRouter from "./routes/authRoutes.js";
+import userRouter from "./routes/userRoutes.js";
+import absenceRouter from "./routes/absenceRoutes.js";
+import reliefAssignmentRouter from "./routes/reliefAssignmentRoutes.js";
+import announcementRoutes from "./routes/announcementRoutes.js";
+import timetableRoutes from "./routes/timetableRoutes.js";
+import attendanceRouter from "./routes/attendanceRoutes.js";
+import dashboardRoutes from "./routes/dashboardRoutes.js";
+import leaveRouter from "./routes/leaveRoutes.js";
+import adminRouter from "./routes/adminRoutes.js";
+import teacherRouter  from "./routes/teacherRoutes.js";
+import adminDashboardRouter from "./routes/adminDashboardRoutes.js";
+import reportRouter from "./routes/reportRoutes.js";
+import teacherReportRoutes from './routes/teacherReportRoutes.js';
+
 const app = express();
 const PORT = process.env.PORT || 3301;
 
-// Common middleware
-app.use(cors());
+connectDB();
+
+/* Middleware */
+app.use(cors({
+  origin: process.env.FRONTEND_URL,
+  credentials: true
+}));
 app.use(express.json());
+app.use(cookieParser());
 
-// Base route
+/* Routes */
 app.get("/", (req, res) => {
-  res.status(200).json({ success: { message: `Welcome to the server!` } });
+  res.json({ message: "Server running" });
 });
 
-// Error route
+app.use("/api/auth", authRouter);
+app.use("/api/user", userRouter);
+app.use("/api/absence", absenceRouter);
+app.use("/api/relief-assignments", reliefAssignmentRouter);
+app.use("/api/announcements", announcementRoutes);
+app.use("/api/timetable", timetableRoutes);
+app.use('/api/attendance', attendanceRouter);
+app.use("/api/dashboard" , dashboardRoutes);
+app.use('/api/leave', leaveRouter);
+app.use('/api/admin', adminRouter);
+app.use('/api/teacher', teacherRouter);
+app.use('/api/admin-dashboard', adminDashboardRouter);
+app.use('/api/reports', reportRouter);
+app.use('/api/teacher-reports', teacherReportRoutes);
+
+/* Test */
+app.get("/api/test", (req, res) => {
+  res.send("API WORKING");
+});
+
+/* 404 */
 app.use((req, res) => {
-  res.status(404).json({ error: { message: `Not found!` } });
+  res.status(404).json({ message: "Not Found" });
 });
 
-// Initialize the connection
-app.listen(PORT, () => {
-  console.log(`Server is running at ${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server is running on port ${PORT}`);
 });
